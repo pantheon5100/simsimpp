@@ -9,6 +9,34 @@ from solo.methods.base import BaseModel
 from solo.losses.vicreg import covariance_loss
 
 
+class Projector(nn.Module):
+    def __init__(self, features_dim, proj_hidden_dim, output_dim):
+        super(Projector, self).__init__()
+
+        self.fc1 = nn.Sequential(
+                    nn.Linear(features_dim, proj_hidden_dim, bias=False),
+                    nn.BatchNorm1d(proj_hidden_dim),
+                    nn.ReLU(),)
+        
+        self.fc2 = nn.Sequential(
+                        nn.Linear(proj_hidden_dim, proj_hidden_dim, bias=False),
+                        nn.BatchNorm1d(proj_hidden_dim),
+                        nn.ReLU(),)
+
+        self.fc3 = nn.Linear(proj_hidden_dim, output_dim)
+        self.fc3.bias.requires_grad = False
+
+        self.bn3 = nn.BatchNorm1d(output_dim, affine=False),
+
+    def forward(self,x):
+        x = self.fc1(x)
+        x = self.fc2(x)
+        y = self.fc3(x)
+        x = self.bn3(y)
+
+        return x, y.detach()
+
+
 def value_constrain(x, type=None):
     if type == "sigmoid":
         return 2*torch.sigmoid(x)-1
@@ -56,17 +84,7 @@ class SimSiam(BaseModel):
         super().__init__(**kwargs)
 
         # projector
-        self.projector = nn.Sequential(
-            nn.Linear(self.features_dim, proj_hidden_dim, bias=False),
-            nn.BatchNorm1d(proj_hidden_dim),
-            nn.ReLU(),
-            nn.Linear(proj_hidden_dim, proj_hidden_dim, bias=False),
-            nn.BatchNorm1d(proj_hidden_dim),
-            nn.ReLU(),
-            nn.Linear(proj_hidden_dim, output_dim),
-            nn.BatchNorm1d(output_dim, affine=False),
-        )
-        self.projector[6].bias.requires_grad = False  # hack: not use bias as it is followed by BN
+        self.projector = Projector
 
         # predictor
         if not BL:
@@ -96,8 +114,6 @@ class SimSiam(BaseModel):
 
         parser.add_argument("--pred_hidden_dim", type=int, default=512)
 
-        # training with triplet loss
-        parser.add_argument("--triplet", action="store_true")
         return parent_parser
 
     @property
@@ -147,8 +163,8 @@ class SimSiam(BaseModel):
         class_loss = out["loss"]
         feats1, feats2 = out["feats"]
 
-        z1 = self.projector(feats1)
-        z2 = self.projector(feats2)
+        z1, y1 = self.projector(feats1)
+        z2, y2 = self.projector(feats2)
 
         p1 = self.predictor(z1)
         p2 = self.predictor(z2)
@@ -163,10 +179,10 @@ class SimSiam(BaseModel):
 
         with torch.no_grad():
             # normalize the vector to make it comparable
-            z2 = F.normalize(z2, dim=-1)
-            z1 = F.normalize(z1, dim=-1)
+            y1 = F.normalize(y1, dim=-1)
+            y2 = F.normalize(y2, dim=-1)
 
-            centervector = ((z2 + z1)/2).mean(dim=0)
+            centervector = ((y1 + y2)/2).mean(dim=0)
             residualvector = z2 - centervector
             # import pdb; pdb.set_trace()
 
@@ -233,8 +249,6 @@ class SimSiam(BaseModel):
             "norm_cov_loss": norm_cov_loss,
             "mean_z": mean_z,
             "norm_mean_z": norm_mean_z,
-            "mean_cos_sim_before_current":mean_cos_sim_before_current,
-            "cos_sim_mean_before_current":cos_sim_mean_before_current,
         }
 
         metrics.update(new_metric_log)

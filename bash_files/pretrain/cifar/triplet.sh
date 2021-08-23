@@ -3,7 +3,7 @@ python3 ../../../main_pretrain.py \
     --encoder resnet18 \
     --data_dir ../../../datasets \
     --max_epochs 1000 \
-    --gpus 0 \
+    --gpus 4 \
     --distributed_backend ddp \
     --sync_batchnorm \
     --precision 16 \
@@ -20,8 +20,8 @@ python3 ../../../main_pretrain.py \
     --hue 0.1 \
     --gaussian_prob 0.0 \
     --zero_init_residual \
-    --name baseline \
-    --project solo-learn-triplet-test \
+    --name Regr \
+    --project solo-learn-triplet \
     --entity kaistssl \
     --wandb \
     --method triplet \
@@ -29,4 +29,4 @@ python3 ../../../main_pretrain.py \
     --pred_hidden_dim 512 \
     --output_dim 2048\
     --num_crops 3\
-    --experiment Ec2r
+    --experiment Regr

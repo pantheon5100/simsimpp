@@ -47,9 +47,9 @@ class SimSiam_Triplet(BaseModel):
             nn.BatchNorm1d(proj_hidden_dim),
             nn.ReLU(),
             nn.Linear(proj_hidden_dim, output_dim),
-            nn.BatchNorm1d(output_dim, affine=False),
+            # nn.BatchNorm1d(output_dim, affine=False),
         )
-        self.projector[6].bias.requires_grad = False  # hack: not use bias as it is followed by BN
+        # self.projector[6].bias.requires_grad = False  # hack: not use bias as it is followed by BN
 
         # predictor
         if not BL:
@@ -148,7 +148,7 @@ class SimSiam_Triplet(BaseModel):
         batch_zie = int(z1.size(0)/2)
 
         # ------- Triplet loss -------
-        # ["Erc", "E1c", "E05c", "E03c", "E01c", "E1r", "E05r", "Regc", "Regr"]
+        # ["Erc", "E1c", "E05c", "E03c", "E01c", "E1r", "E05r", "Regc", "Regr", "Ec2r", "Er2c", "Erc2c", "Erc2r"]
         def loss_function(p, z, c):
             if self.experiment == "Erc":
                 # print("ecr")
