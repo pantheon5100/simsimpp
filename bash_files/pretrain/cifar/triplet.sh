@@ -20,8 +20,8 @@ python3 ../../../main_pretrain.py \
     --hue 0.1 \
     --gaussian_prob 0.0 \
     --zero_init_residual \
-    --name Regr \
-    --project solo-learn-triplet \
+    --name Erc2r \
+    --project solo-learn-triplet-nobn \
     --entity kaistssl \
     --wandb \
     --method triplet \
@@ -29,4 +29,4 @@ python3 ../../../main_pretrain.py \
     --pred_hidden_dim 512 \
     --output_dim 2048\
     --num_crops 3\
-    --experiment Regr
+    --experiment Erc2r
