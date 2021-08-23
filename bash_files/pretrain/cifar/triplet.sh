@@ -21,7 +21,7 @@ python3 ../../../main_pretrain.py \
     --gaussian_prob 0.0 \
     --zero_init_residual \
     --name baseline \
-    --project solo-learn-triplet \
+    --project solo-learn-triplet-test \
     --entity kaistssl \
     --wandb \
     --method triplet \
@@ -29,4 +29,4 @@ python3 ../../../main_pretrain.py \
     --pred_hidden_dim 512 \
     --output_dim 2048\
     --num_crops 3\
-    --experiment Regr
+    --experiment Ec2r

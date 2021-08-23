@@ -77,7 +77,7 @@ class SimSiam_Triplet(BaseModel):
         # predictor
         parser.add_argument("--BL", action="store_true")
 
-        SUPPORTED_EXP = ["Erc", "E1c", "E05c", "E03c", "E01c", "E1r", "E05r", "Regc", "Regr"]
+        SUPPORTED_EXP = ["Erc", "E1c", "E05c", "E03c", "E01c", "E1r", "E05r", "Regc", "Regr", "Ec2r", "Er2c", "Erc2c", "Erc2r"]
         parser.add_argument("--experiment", choices=SUPPORTED_EXP, type=str)
 
         parser.add_argument("--pred_hidden_dim", type=int, default=512)
@@ -170,6 +170,30 @@ class SimSiam_Triplet(BaseModel):
                 return -(p*z).sum(dim=1).mean() + (torch.linalg.norm(c.mean(dim=0), dim=-1, ord=2)).sum(dim=-1).mean()
             elif self.experiment == "Regr":
                 return -(p*z).sum(dim=1).mean() + (torch.linalg.norm(c-c.mean(dim=0), dim=-1, ord=2)).sum(dim=-1).mean()
+
+            elif self.experiment == "Ec2r":
+                # print("Ec2r")
+                if self.trainer.current_epoch < 500:
+                    return -(p*z).sum(dim=1).mean() + (p*(c.mean(dim=0))).sum(dim=1).mean()
+                else:
+                    return -(p*z).sum(dim=1).mean() + (p*(c-c.mean(dim=0))).sum(dim=1).mean()
+            elif self.experiment == "Er2c":
+                if self.trainer.current_epoch > 500:
+                    return -(p*z).sum(dim=1).mean() + (p*(c.mean(dim=0))).sum(dim=1).mean()
+                else:
+                    return -(p*z).sum(dim=1).mean() + (p*(c-c.mean(dim=0))).sum(dim=1).mean()
+            
+            elif self.experiment == "Erc2c":
+                if self.trainer.current_epoch < 500:
+                    return -(p*z).sum(dim=1).mean() + (p*c).sum(dim=1).mean()
+                else:
+                    return -(p*z).sum(dim=1).mean() + (p*(c.mean(dim=0))).sum(dim=1).mean()
+            elif self.experiment == "Erc2r":
+                if self.trainer.current_epoch < 500:
+                    return -(p*z).sum(dim=1).mean() + (p*c).sum(dim=1).mean()
+                else:
+                    return -(p*z).sum(dim=1).mean() + (p*(c-c.mean(dim=0))).sum(dim=1).mean()
+
 
         neg_cos_sim = loss_function(z1_norm[:batch_zie], z2_norm[:batch_zie], z3_norm[batch_zie:]) / 2 + loss_function(z1_norm[batch_zie:], z2_norm[batch_zie:], z3_norm[:batch_zie]) / 2
 
