@@ -21,7 +21,7 @@ python3 ../../../main_pretrain.py \
     --gaussian_prob 0.0 \
     --zero_init_residual \
     --name Regr \
-    --project solo-learn-triplet-nobn \
+    --project solo-learn-constrain \
     --entity kaistssl \
     --wandb \
     --method triplet \

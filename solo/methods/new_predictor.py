@@ -13,15 +13,16 @@ def value_constrain(x, type=None):
     if type == "sigmoid":
         return 2*torch.sigmoid(x)-1
     elif type == "tanh":
-        return torch.tanh(x)
+        return torch.tanh(0.5*x)
     else:
         return x
 
 
 class BaisLayer(nn.Module):
-    def __init__(self, output_dim, bias=False, weight_matrix=False, constrain_type="none"):
+    def __init__(self, output_dim, bias=False, weight_matrix=False, constrain_type="none", bias_first=False):
         super(BaisLayer, self).__init__()
         self.constrain_type = constrain_type
+        self.bias_first = bias_first
 
         self.weight_matrix = weight_matrix
         if weight_matrix:
@@ -31,9 +32,28 @@ class BaisLayer(nn.Module):
         if bias:
             self.bias = nn.Parameter(torch.zeros(1, output_dim))
 
+    def _base_forward(self, x):
+        if self.bias_first:
+            self.bias.data = value_constrain(self.bias.data, type=self.constrain_type).detach()
+            x = x + self.bias
+
+            self.w.weight.data = value_constrain(self.w.weight.data, type=self.constrain_type).detach()
+            x = self.w(x)
+        else:
+            self.w.weight.data = value_constrain(self.w.weight.data, type=self.constrain_type).detach()
+            x = self.w(x)
+
+            self.bias.data = value_constrain(self.bias.data, type=self.constrain_type).detach()
+            x = x + self.bias
+        return x
+
     def forward(self,x):
         
         x = F.normalize(x, dim=-1)
+
+        if self.bias and self.weight_matrix:
+            x = self._base_forward(x)
+            return x
 
         if self.bias:
             self.bias.data = value_constrain(self.bias.data, type=self.constrain_type).detach()
@@ -45,13 +65,17 @@ class BaisLayer(nn.Module):
 
         return x
 
-class SimSiam(BaseModel):
+class NewPredictor(BaseModel):
     def __init__(
         self,
         output_dim: int,
         proj_hidden_dim: int,
         pred_hidden_dim: int,
         BL:bool,
+        bias:bool,
+        weight_matrix:bool,
+        constrain:str,
+        bias_first:bool,
         **kwargs,
     ):
         """Implements SimSiam (https://arxiv.org/abs/2011.10566).
@@ -80,6 +104,7 @@ class SimSiam(BaseModel):
 
         # predictor
         if not BL:
+            assert bias and  weight_matrix
             self.predictor = nn.Sequential(
                 nn.Linear(output_dim, pred_hidden_dim, bias=False),
                 nn.BatchNorm1d(pred_hidden_dim),
@@ -88,13 +113,13 @@ class SimSiam(BaseModel):
             )
         elif BL:
             self.predictor = nn.Sequential(
-                                BaisLayer(output_dim,bias=False, weight_matrix=False, constrain_type="none"),
+                                BaisLayer(output_dim,bias=bias, weight_matrix=weight_matrix, constrain_type=constrain, bias_first=bias_first)
                                 )
 
     @staticmethod
     def add_model_specific_args(parent_parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        parent_parser = super(SimSiam, SimSiam).add_model_specific_args(parent_parser)
-        parser = parent_parser.add_argument_group("simsiam")
+        parent_parser = super(NewPredictor, NewPredictor).add_model_specific_args(parent_parser)
+        parser = parent_parser.add_argument_group("newpredictor")
 
         # projector
         parser.add_argument("--output_dim", type=int, default=128)
@@ -102,9 +127,13 @@ class SimSiam(BaseModel):
 
         # predictor
         parser.add_argument("--BL", action="store_true")
+        parser.add_argument("--bias", action="store_true")
+        parser.add_argument("--bias_first", action="store_true")
+        parser.add_argument("--weight_matrix", action="store_true")
 
         SUPPORTED_VALUE_CONSTRAIN = ["none", "sigmoid", "tanh"]
         parser.add_argument("--constrain", choices=SUPPORTED_VALUE_CONSTRAIN, type=str)
+
 
         parser.add_argument("--pred_hidden_dim", type=int, default=512)
 
@@ -178,7 +207,6 @@ class SimSiam(BaseModel):
 
             centervector = ((z1 + z2)/2).mean(dim=0)
             residualvector = z2 - centervector
-            # import pdb; pdb.set_trace()
 
             ZvsC = F.cosine_similarity(z2, centervector.expand(z2.size(0), 2048), dim=-1).mean()
             ZvsR = F.cosine_similarity(z2, residualvector, dim=-1).mean()
@@ -191,14 +219,6 @@ class SimSiam(BaseModel):
             CS1vsCc = F.cosine_similarity(self.onestepbeforecentering, centervector.reshape(1, -1))
             CS1minusCcvsCc = F.cosine_similarity(centervector.reshape(1, -1)-self.onestepbeforecentering  , centervector.reshape(1, -1))
             CS1minusCcvsCS1 = F.cosine_similarity(centervector.reshape(1, -1)-self.onestepbeforecentering  , self.onestepbeforecentering)
-
-
-            # self.recod_epoch[self.trainer.global_step - self.trainer.current_epoch * 195] = CS1minusCcvsCc.cpu()
-            # CS1minusCcvsCc = F.cosine_similarity(self.onestepbeforecentering, centervector.reshape(1, -1))
-
-            # if self.trainer.is_last_batch:
-            #     import numpy as np
-            #     np.savetxt( f"BS{self.trainer.current_epoch}.txt", self.recod_epoch.numpy(),)
 
             self.onestepbeforecentering = centervector.reshape(1, -1)
 

@@ -13,6 +13,8 @@ from solo.methods.swav import SwAV
 from solo.methods.vicreg import VICReg
 from solo.methods.wmse import WMSE
 from solo.methods.triplet import SimSiam_Triplet
+from solo.methods.constrain import Constrain
+from solo.methods.new_predictor import NewPredictor
 
 METHODS = {
     # base classes
@@ -31,7 +33,9 @@ METHODS = {
     "swav": SwAV,
     "vicreg": VICReg,
     "wmse": WMSE,
-    "triplet":SimSiam_Triplet
+    "triplet":SimSiam_Triplet,
+    "constrain":Constrain,
+    "newpredictor":NewPredictor,
 }
 __all__ = [
     "BarlowTwins",
@@ -49,6 +53,8 @@ __all__ = [
     "VICReg",
     "WMSE",
     "SimSiam_Triplet",
+    "Constrain",
+    "NewPredictor"
 ]
 
 try:

@@ -32,12 +32,11 @@ class BaisLayer(nn.Module):
             self.bias = nn.Parameter(torch.zeros(1, output_dim))
 
     def forward(self,x):
-        
-        x = F.normalize(x, dim=-1)
-
         if self.bias:
             self.bias.data = value_constrain(self.bias.data, type=self.constrain_type).detach()
             x = x + self.bias
+
+        x = F.normalize(x, dim=-1)
 
         if self.weight_matrix:
             self.w.weight.data = value_constrain(self.w.weight.data, type=self.constrain_type).detach()
@@ -45,7 +44,7 @@ class BaisLayer(nn.Module):
 
         return x
 
-class SimSiam(BaseModel):
+class Constrain(BaseModel):
     def __init__(
         self,
         output_dim: int,
@@ -88,13 +87,13 @@ class SimSiam(BaseModel):
             )
         elif BL:
             self.predictor = nn.Sequential(
-                                BaisLayer(output_dim,bias=False, weight_matrix=False, constrain_type="none"),
+                                BaisLayer(output_dim,bias=True, weight_matrix=True, constrain_type="sigmoid"),
                                 )
 
     @staticmethod
     def add_model_specific_args(parent_parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        parent_parser = super(SimSiam, SimSiam).add_model_specific_args(parent_parser)
-        parser = parent_parser.add_argument_group("simsiam")
+        parent_parser = super(Constrain, Constrain).add_model_specific_args(parent_parser)
+        parser = parent_parser.add_argument_group("constrain")
 
         # projector
         parser.add_argument("--output_dim", type=int, default=128)

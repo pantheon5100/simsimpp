@@ -1,7 +1,7 @@
-python3 ../../../main_pretrain.py \
+python3 ../../../../main_pretrain.py \
     --dataset cifar100 \
     --encoder resnet18 \
-    --data_dir ../../../datasets \
+    --data_dir ../../../../datasets \
     --max_epochs 1000 \
     --gpus 0 \
     --distributed_backend ddp \
@@ -18,15 +18,17 @@ python3 ../../../main_pretrain.py \
     --contrast 0.4 \
     --saturation 0.4 \
     --hue 0.1 \
-    --gaussian_prob 0.0 \
+    --gaussian_prob 0.0 0.0 \
     --zero_init_residual \
-    --name Regr \
-    --project solo-learn-triplet-nobn \
+    --name weight_matrixtanh-biastanh \
+    --project solo-learn-BW \
     --entity kaistssl \
     --wandb \
-    --method triplet \
+    --method newpredictor \
     --proj_hidden_dim 2048 \
     --pred_hidden_dim 512 \
-    --output_dim 2048\
-    --num_crops 3\
-    --experiment Regr
+    --output_dim 2048 \
+    --BL \
+    --weight_matrix \
+    --bias \
+    --constrain tanh

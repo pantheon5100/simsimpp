@@ -12,36 +12,27 @@ from solo.losses.vicreg import covariance_loss
 def value_constrain(x, type=None):
     if type == "sigmoid":
         return 2*torch.sigmoid(x)-1
-    elif type == "tanh":
-        return torch.tanh(x)
     else:
         return x
 
 
-class BaisLayer(nn.Module):
-    def __init__(self, output_dim, bias=False, weight_matrix=False, constrain_type="none"):
-        super(BaisLayer, self).__init__()
-        self.constrain_type = constrain_type
+class BL(nn.Module):
+    def __init__(self, output_dim):
+        super(BL, self).__init__()
 
-        self.weight_matrix = weight_matrix
-        if weight_matrix:
-            self.w = nn.Linear(output_dim, output_dim, bias=False)
+        self.w = nn.Linear(output_dim, output_dim, bias=False)
 
-        self.bias = bias
-        if bias:
-            self.bias = nn.Parameter(torch.zeros(1, output_dim))
+        self.bias = nn.Parameter(torch.zeros(1, output_dim))
 
-    def forward(self,x):
+    def forward(self,x, constrain_type=None):
         
         x = F.normalize(x, dim=-1)
 
-        if self.bias:
-            self.bias.data = value_constrain(self.bias.data, type=self.constrain_type).detach()
-            x = x + self.bias
+        self.bias.data = value_constrain(self.bias.data, type=constrain_type).detach()
+        x = x + self.bias
 
-        if self.weight_matrix:
-            self.w.weight.data = value_constrain(self.w.weight.data, type=self.constrain_type).detach()
-            x = self.w(x)
+        self.w.weight.data = value_constrain(self.w.weight.data, type=constrain_type).detach()
+        x = self.w(x)
 
         return x
 
@@ -87,9 +78,11 @@ class SimSiam(BaseModel):
                 nn.Linear(pred_hidden_dim, output_dim),
             )
         elif BL:
-            self.predictor = nn.Sequential(
-                                BaisLayer(output_dim,bias=False, weight_matrix=False, constrain_type="none"),
-                                )
+            self.predictor = nn.Sequential()
+
+        self.register_buffer("EXP_T", F.normalize(torch.randn(50000, output_dim), dim=-1))
+        self.m = 0.8
+
 
     @staticmethod
     def add_model_specific_args(parent_parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -103,7 +96,7 @@ class SimSiam(BaseModel):
         # predictor
         parser.add_argument("--BL", action="store_true")
 
-        SUPPORTED_VALUE_CONSTRAIN = ["none", "sigmoid", "tanh"]
+        SUPPORTED_VALUE_CONSTRAIN = ["sigmoid", "tanh"]
         parser.add_argument("--constrain", choices=SUPPORTED_VALUE_CONSTRAIN, type=str)
 
         parser.add_argument("--pred_hidden_dim", type=int, default=512)
