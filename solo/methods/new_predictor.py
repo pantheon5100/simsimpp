@@ -18,9 +18,9 @@ def value_constrain(x, type=None):
         return x
 
 
-class BaisLayer(nn.Module):
+class BiasLayer(nn.Module):
     def __init__(self, output_dim, bias=False, weight_matrix=False, constrain_type="none", bias_first=False):
-        super(BaisLayer, self).__init__()
+        super(BiasLayer, self).__init__()
         self.constrain_type = constrain_type
         self.bias_first = bias_first
 
@@ -113,7 +113,7 @@ class NewPredictor(BaseModel):
             )
         elif BL:
             self.predictor = nn.Sequential(
-                                BaisLayer(output_dim,bias=bias, weight_matrix=weight_matrix, constrain_type=constrain, bias_first=bias_first)
+                                BiasLayer(output_dim,bias=bias, weight_matrix=weight_matrix, constrain_type=constrain, bias_first=bias_first)
                                 )
 
     @staticmethod
