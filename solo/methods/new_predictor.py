@@ -30,12 +30,12 @@ class BiasLayer(nn.Module):
 
         self.bias = bias
         if bias:
-            self.bias = nn.Parameter(torch.zeros(1, output_dim))
+            self.bias_vector = nn.Parameter(torch.zeros(1, output_dim))
 
     def _base_forward(self, x):
         if self.bias_first:
-            self.bias.data = value_constrain(self.bias.data, type=self.constrain_type).detach()
-            x = x + self.bias
+            self.bias_vector.data = value_constrain(self.bias_vector.data, type=self.constrain_type).detach()
+            x = x + self.bias_vector
 
             self.w.weight.data = value_constrain(self.w.weight.data, type=self.constrain_type).detach()
             x = self.w(x)
@@ -43,8 +43,8 @@ class BiasLayer(nn.Module):
             self.w.weight.data = value_constrain(self.w.weight.data, type=self.constrain_type).detach()
             x = self.w(x)
 
-            self.bias.data = value_constrain(self.bias.data, type=self.constrain_type).detach()
-            x = x + self.bias
+            self.bias_vector.data = value_constrain(self.bias_vector.data, type=self.constrain_type).detach()
+            x = x + self.bias_vector
         return x
 
     def forward(self,x):
@@ -56,8 +56,8 @@ class BiasLayer(nn.Module):
             return x
 
         if self.bias:
-            self.bias.data = value_constrain(self.bias.data, type=self.constrain_type).detach()
-            x = x + self.bias
+            self.bias_vector.data = value_constrain(self.bias_vector.data, type=self.constrain_type).detach()
+            x = x + self.bias_vector
 
         if self.weight_matrix:
             self.w.weight.data = value_constrain(self.w.weight.data, type=self.constrain_type).detach()
@@ -115,6 +115,10 @@ class NewPredictor(BaseModel):
             self.predictor = nn.Sequential(
                                 BiasLayer(output_dim,bias=bias, weight_matrix=weight_matrix, constrain_type=constrain, bias_first=bias_first)
                                 )
+        
+        self.register_buffer("previouscentering", torch.randn(1, output_dim))
+        self.register_buffer("onestepbeforecentering", torch.randn(1, output_dim))
+
 
     @staticmethod
     def add_model_specific_args(parent_parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -201,20 +205,21 @@ class NewPredictor(BaseModel):
         z_std = (z1_std + z2_std) / 2
 
         with torch.no_grad():
+            z1_norm = F.normalize(z1, dim=-1)
+            z2_norm = F.normalize(z2, dim=-1)
             # normalize the vector to make it comparable
-            z1 = F.normalize(z1, dim=-1)
-            z2 = F.normalize(z2, dim=-1)
 
-            centervector = ((z1 + z2)/2).mean(dim=0)
-            residualvector = z2 - centervector
+            centervector = ((z1_norm + z2_norm)/2).mean(dim=0)
+            residualvector = z2_norm - centervector
+            # import pdb; pdb.set_trace()
 
-            ZvsC = F.cosine_similarity(z2, centervector.expand(z2.size(0), 2048), dim=-1).mean()
-            ZvsR = F.cosine_similarity(z2, residualvector, dim=-1).mean()
-            CvsR = F.cosine_similarity(centervector.expand(z2.size(0), 2048), residualvector, dim=-1).mean()
+            ZvsC = F.cosine_similarity(z2_norm, centervector.expand(z2_norm.size(0), 2048), dim=-1).mean()
+            ZvsR = F.cosine_similarity(z2_norm, residualvector, dim=-1).mean()
+            CvsR = F.cosine_similarity(centervector.expand(z2_norm.size(0), 2048), residualvector, dim=-1).mean()
 
 
-            ratio_RvsW = (torch.linalg.norm(residualvector, dim=1, ord=2) / torch.linalg.norm(z2, dim=1, ord=2)).mean()
-            ratio_CvsW = (torch.linalg.norm(centervector.expand(z2.size(0), 2048), dim=1, ord=2) / torch.linalg.norm(z2, dim=1, ord=2)).mean()
+            ratio_RvsW = (torch.linalg.norm(residualvector, dim=1, ord=2) / torch.linalg.norm(z2_norm, dim=1, ord=2)).mean()
+            ratio_CvsW = (torch.linalg.norm(centervector.expand(z2_norm.size(0), 2048), dim=1, ord=2) / torch.linalg.norm(z2_norm, dim=1, ord=2)).mean()
 
             CS1vsCc = F.cosine_similarity(self.onestepbeforecentering, centervector.reshape(1, -1))
             CS1minusCcvsCc = F.cosine_similarity(centervector.reshape(1, -1)-self.onestepbeforecentering  , centervector.reshape(1, -1))
@@ -247,22 +252,14 @@ class NewPredictor(BaseModel):
         z_std = (z1_std + z2_std) / 2
 
         with torch.no_grad():
-            cov_loss = covariance_loss(z1, z2)
-            mean_z = (z1.abs().mean(dim=1) + z2.abs().mean(dim=1)).mean()/2
-
-            z1 = F.normalize(z1, dim=-1)
-            z2 = F.normalize(z2, dim=-1)
-            norm_cov_loss = covariance_loss(z1, z2)
-
-            norm_mean_z = (z1.abs().mean(dim=1) + z2.abs().mean(dim=1)).mean()/2
+            cov_loss = covariance_loss(z1_norm, z2_norm)
+            mean_z = (z1_norm.abs().mean(dim=1) + z2_norm.abs().mean(dim=1)).mean()/2
 
         metrics = {
             "neg_cos_sim": neg_cos_sim,
             "train_z_std": z_std,
             "cov_loss": cov_loss,
-            "norm_cov_loss": norm_cov_loss,
             "mean_z": mean_z,
-            "norm_mean_z": norm_mean_z,
         }
 
         metrics.update(new_metric_log)

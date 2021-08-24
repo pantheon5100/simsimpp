@@ -179,7 +179,7 @@ def main():
     shutil.copytree(f"../../../tests", os.path.join(experimentdir, 'tests'))
     shutil.copyfile(f"../../../main_pretrain.py", os.path.join(experimentdir, 'main_pretrain.py'))
     shutil.copyfile(f"../../../main_linear.py", os.path.join(experimentdir, 'main_linear.py'))
-    shutil.copyfile(f"../../../bash_files/pretrain/cifar/{args.method}.sh", os.path.join(experimentdir, '{args.method}.sh'))
+    # shutil.copyfile(f"../../../bash_files/pretrain/cifar/{args.method}.sh", os.path.join(experimentdir, '{args.method}.sh'))
 
     if args.dali:
         trainer.fit(model, val_dataloaders=val_loader)
