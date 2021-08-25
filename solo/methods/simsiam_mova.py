@@ -8,41 +8,14 @@ from solo.losses.simsiam import simsiam_loss_func
 from solo.methods.base import BaseModel
 from solo.losses.vicreg import covariance_loss
 
-
-def value_constrain(x, type=None):
-    if type == "sigmoid":
-        return 2*torch.sigmoid(x)-1
-    else:
-        return x
-
-
-class BL(nn.Module):
-    def __init__(self, output_dim):
-        super(BL, self).__init__()
-
-        self.w = nn.Linear(output_dim, output_dim, bias=False)
-
-        self.bias = nn.Parameter(torch.zeros(1, output_dim))
-
-    def forward(self,x, constrain_type=None):
-        
-        x = F.normalize(x, dim=-1)
-
-        self.bias.data = value_constrain(self.bias.data, type=constrain_type).detach()
-        x = x + self.bias
-
-        self.w.weight.data = value_constrain(self.w.weight.data, type=constrain_type).detach()
-        x = self.w(x)
-
-        return x
-
-class SimSiam(BaseModel):
+class SimSiamMova(BaseModel):
     def __init__(
         self,
         output_dim: int,
         proj_hidden_dim: int,
         pred_hidden_dim: int,
-        BL:bool,
+        normz:bool,
+        random_z:bool,
         **kwargs,
     ):
         """Implements SimSiam (https://arxiv.org/abs/2011.10566).
@@ -54,7 +27,8 @@ class SimSiam(BaseModel):
         """
 
         super().__init__(**kwargs)
-
+        self.normz = normz
+        self.random_z = random_z
         # projector
         self.projector = nn.Sequential(
             nn.Linear(self.features_dim, proj_hidden_dim, bias=False),
@@ -69,37 +43,31 @@ class SimSiam(BaseModel):
         # self.projector[6].bias.requires_grad = False  # hack: not use bias as it is followed by BN
 
 
-        # predictor
-        if not BL:
-            self.predictor = nn.Sequential(
-                nn.Linear(output_dim, pred_hidden_dim, bias=False),
-                nn.BatchNorm1d(pred_hidden_dim),
-                nn.ReLU(),
-                nn.Linear(pred_hidden_dim, output_dim),
-            )
-        elif BL:
-            self.predictor = nn.Sequential()
+        # # predictor
+        self.predictor = nn.Sequential()
 
         self.register_buffer("EXP_T", F.normalize(torch.randn(50000, output_dim), dim=-1))
         self.m = 0.8
 
+        self.register_buffer("previouscentering", torch.randn(1, output_dim))
+        self.register_buffer("onestepbeforecentering", torch.randn(1, output_dim))
+
 
     @staticmethod
     def add_model_specific_args(parent_parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        parent_parser = super(SimSiam, SimSiam).add_model_specific_args(parent_parser)
-        parser = parent_parser.add_argument_group("simsiam")
+        parent_parser = super(SimSiamMova, SimSiamMova).add_model_specific_args(parent_parser)
+        parser = parent_parser.add_argument_group("simsiammova")
 
         # projector
         parser.add_argument("--output_dim", type=int, default=128)
         parser.add_argument("--proj_hidden_dim", type=int, default=2048)
+        parser.add_argument("--normz", action="store_true")
 
         # predictor
-        parser.add_argument("--BL", action="store_true")
-
-        SUPPORTED_VALUE_CONSTRAIN = ["sigmoid", "tanh"]
-        parser.add_argument("--constrain", choices=SUPPORTED_VALUE_CONSTRAIN, type=str)
-
         parser.add_argument("--pred_hidden_dim", type=int, default=512)
+
+        # loss
+        parser.add_argument("--random_z", action="store_true")
 
         return parent_parser
 
@@ -146,6 +114,10 @@ class SimSiam(BaseModel):
             torch.Tensor: total loss composed of SimSiam loss and classification loss
         """
 
+        # prepare corresponding before
+        img_indexes = batch[0]
+        z_before = self.EXP_T[img_indexes, :].clone()
+
         out = super().training_step(batch, batch_idx)
         class_loss = out["loss"]
         feats1, feats2 = out["feats"]
@@ -153,11 +125,28 @@ class SimSiam(BaseModel):
         z1 = self.projector(feats1)
         z2 = self.projector(feats2)
 
+        if self.normz:
+            # print("normz")
+            z1 = F.normalize(z1, dim=-1)
+            z2 = F.normalize(z2, dim=-1)
+
         p1 = self.predictor(z1)
         p2 = self.predictor(z2)
 
-        # ------- contrastive loss -------
-        neg_cos_sim = simsiam_loss_func(p1, z2) / 2 + simsiam_loss_func(p2, z1) / 2
+        # ------- mova loss -------
+        # neg_cos_sim = simsiam_loss_func(p1, z2) / 2 + simsiam_loss_func(p2, z1) / 2
+        
+        neg_cos_sim = F.mse_loss(z1, z_before)
+        
+        if self.random_z:
+            # print("random")
+            randn_z2 = F.normalize(2*torch.rand(self.batch_size, 2048)-1, dim=1).cuda()
+            randn_z2 = (randn_z2.T* (torch.linalg.norm(z2, dim=1, ord=2))).T.detach()
+
+            self.EXP_T[img_indexes] = self.m * randn_z2 + (1-self.m)*z2.detach()
+
+        else:
+            self.EXP_T[img_indexes] = self.m*self.EXP_T[img_indexes] + (1-self.m) * z2.detach()
 
         # calculate std of features
         z1_std = F.normalize(z1, dim=-1).std(dim=0).mean()

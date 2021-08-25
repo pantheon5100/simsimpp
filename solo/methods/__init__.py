@@ -15,6 +15,7 @@ from solo.methods.wmse import WMSE
 from solo.methods.triplet import SimSiam_Triplet
 from solo.methods.constrain import Constrain
 from solo.methods.new_predictor import NewPredictor
+from solo.methods.simsiam_mova import SimSiamMova
 
 METHODS = {
     # base classes
@@ -36,6 +37,7 @@ METHODS = {
     "triplet":SimSiam_Triplet,
     "constrain":Constrain,
     "newpredictor":NewPredictor,
+    "simsiammova":SimSiamMova,
 }
 __all__ = [
     "BarlowTwins",
@@ -54,7 +56,8 @@ __all__ = [
     "WMSE",
     "SimSiam_Triplet",
     "Constrain",
-    "NewPredictor"
+    "NewPredictor",
+    "SimSiamMova"
 ]
 
 try:

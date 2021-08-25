@@ -1,7 +1,7 @@
-python3 ../../../../main_pretrain.py \
+python3 ../../../main_pretrain.py \
     --dataset cifar100 \
     --encoder resnet18 \
-    --data_dir ../../../../datasets \
+    --data_dir ../../../datasets \
     --max_epochs 1000 \
     --gpus 0 \
     --distributed_backend ddp \
